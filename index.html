@@ -4,25 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Royal Week Campaign</title>
-    
-    <!-- 1. بارگذاری Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 2. بارگذاری فونت وزیرمتن -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
-    
-    <!-- 3. بارگذاری Babel برای اجرای React -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- تنظیمات استایل پایه -->
     <style>
         body {
             font-family: 'Vazirmatn', sans-serif;
             background-color: #09090b;
             margin: 0;
-            overflow: hidden; /* جلوگیری از اسکرول اضافه */
+            overflow: hidden;
         }
-        
         .neon-button {
             box-shadow: 0 0 10px #f59e0b, 0 0 20px #f59e0b, 0 0 40px #f59e0b;
             animation: neon-pulse 1.5s infinite alternate;
@@ -34,34 +26,40 @@
     </style>
 </head>
 <body>
-
     <div id="root"></div>
 
-    <!-- 4. اسکریپت اصلی برنامه -->
     <script type="text/babel" data-type="module">
-        // ایمپورت کردن کتابخانه‌ها از CDN
         import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
         import { Sparkles, Camera, Fingerprint } from 'https://esm.sh/lucide-react@0.292.0';
 
-        // --- هلپر برای جلوگیری از خطا در فایل لوکال ---
-        const safeStorage = {
-            getItem: (key) => {
-                try { return localStorage.getItem(key); } catch(e) { return null; }
-            },
-            setItem: (key, value) => {
-                try { localStorage.setItem(key, value); } catch(e) {}
-            }
-        };
-
-        // --- تنظیمات لیست جوایز ---
+        // --- تنظیمات دقیق جوایز با سیستم وزن‌دهی (Chance) ---
+        // weight: عدد بزرگتر = شانس بیشتر برای برنده شدن
         const PRIZE_CONFIG = [
+            { 
+                id: 'collection', 
+                brand: 'فروشگاه کالکشن', 
+                discount: '۳۰٪', 
+                label: 'تخفیف روی کل اجناس', 
+                weight: 50, // ۵۰ سهم از ۱۰۰ سهم (بیشترین شانس)
+                prefix: 'CL', 
+                color: 'from-slate-300 to-slate-500' 
+            },
+            { 
+                id: 'nabhani', 
+                brand: 'نبهانی', 
+                discount: '۶۰٪', 
+                label: 'تخفیف ویژه', 
+                weight: 20, // ۲۰ سهم (شانس متوسط)
+                prefix: 'NB', 
+                color: 'from-blue-400 to-cyan-600' 
+            },
             { 
                 id: 'cbook', 
                 brand: 'فروشگاه سی‌بوک', 
                 discount: 'یک جلد کتاب', 
                 label: 'هدیه فرهنگی', 
-                limit: 10, 
+                weight: 7, // شانس کم (کمیاب)
                 prefix: 'BK', 
                 color: 'from-emerald-400 to-teal-600' 
             },
@@ -70,7 +68,7 @@
                 brand: 'فروشگاه سارک', 
                 discount: '۲۵۰,۰۰۰', 
                 label: 'تومان تخفیف', 
-                limit: 10, 
+                weight: 7, // شانس کم
                 prefix: 'SR', 
                 color: 'from-rose-400 to-red-600' 
             },
@@ -79,7 +77,7 @@
                 brand: 'زرسام', 
                 discount: '۲۵۰,۰۰۰', 
                 label: 'تومان تخفیف', 
-                limit: 10, 
+                weight: 8, // شانس کم
                 prefix: 'ZR', 
                 color: 'from-amber-300 to-yellow-600' 
             },
@@ -88,71 +86,53 @@
                 brand: 'تولیکا', 
                 discount: '۳۰۰,۰۰۰', 
                 label: 'تومان تخفیف', 
-                limit: 10, 
+                weight: 8, // شانس کم
                 prefix: 'TL', 
                 color: 'from-purple-400 to-indigo-600' 
-            },
-            { 
-                id: 'nabhani', 
-                brand: 'نبهانی', 
-                discount: '۶۰٪', 
-                label: 'تخفیف ویژه', 
-                limit: 20, 
-                prefix: 'NB', 
-                color: 'from-blue-400 to-cyan-600' 
-            },
-            { 
-                id: 'collection', 
-                brand: 'فروشگاه کالکشن', 
-                discount: '۳۰٪', 
-                label: 'تخفیف روی کل اجناس', 
-                limit: null, 
-                prefix: 'CL', 
-                color: 'from-slate-300 to-slate-500' 
             }
         ];
 
         function RoyalCampaignApp() {
-            const [step, setStep] = useState('intro'); // intro | loading | result
+            const [step, setStep] = useState('intro'); 
             const [prize, setPrize] = useState(null);
 
+            // کلید جدید برای ریست شدن دیتای قبلی شما
+            const STORAGE_KEY = 'royal_prize_fixed_v2'; 
+
             useEffect(() => {
-                // چک کردن جایزه قبلی
-                const existingPrize = safeStorage.getItem('royal_week_prize_v_final');
+                const existingPrize = localStorage.getItem(STORAGE_KEY);
                 if (existingPrize) {
                     setPrize(JSON.parse(existingPrize));
                     setStep('result');
                 }
-                
-                // مقداردهی اولیه شمارشگر
-                if (!safeStorage.getItem('prize_counts')) {
-                    safeStorage.setItem('prize_counts', JSON.stringify({}));
-                }
             }, []);
+
+            // --- الگوریتم انتخاب شانسی وزن‌دار ---
+            const getWeightedRandomPrize = () => {
+                // ۱. محاسبه مجموع کل وزن‌ها
+                const totalWeight = PRIZE_CONFIG.reduce((sum, item) => sum + item.weight, 0);
+                
+                // ۲. انتخاب یک عدد تصادفی بین ۰ تا مجموع وزن‌ها
+                let randomNum = Math.random() * totalWeight;
+                
+                // ۳. پیدا کردن آیتم بر اساس وزن
+                for (const item of PRIZE_CONFIG) {
+                    if (randomNum < item.weight) {
+                        return item;
+                    }
+                    randomNum -= item.weight;
+                }
+                // محض اطمینان (اگر خطای اعشاری پیش آمد)، آیتم اول را برگردان
+                return PRIZE_CONFIG[0];
+            };
 
             const handleStartLottery = () => {
                 setStep('loading');
 
-                // 1. خواندن موجودی
-                const counts = JSON.parse(safeStorage.getItem('prize_counts') || '{}');
+                // انتخاب جایزه با سیستم جدید
+                const selectedPrize = getWeightedRandomPrize();
 
-                // 2. فیلتر کردن مجازها
-                const availablePrizes = PRIZE_CONFIG.filter(p => {
-                    if (p.limit === null) return true;
-                    const used = counts[p.id] || 0;
-                    return used < p.limit;
-                });
-
-                // 3. انتخاب رندوم
-                const selectedPool = availablePrizes.length > 0 ? availablePrizes : [PRIZE_CONFIG[PRIZE_CONFIG.length - 1]];
-                const randomIndex = Math.floor(Math.random() * selectedPool.length);
-                const selectedPrize = selectedPool[randomIndex];
-                
-                // 4. آپدیت موجودی
-                counts[selectedPrize.id] = (counts[selectedPrize.id] || 0) + 1;
-                safeStorage.setItem('prize_counts', JSON.stringify(counts));
-
-                // 5. تولید کد
+                // تولید کد اختصاصی
                 const randomCode = `${selectedPrize.prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
                 const newPrizeData = {
@@ -161,14 +141,16 @@
                     date: new Date().toLocaleDateString('fa-IR')
                 };
 
+                // ذخیره و نمایش با کمی تاخیر
                 setTimeout(() => {
-                    safeStorage.setItem('royal_week_prize_v_final', JSON.stringify(newPrizeData));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrizeData));
                     setPrize(newPrizeData);
                     setStep('result');
                 }, 2500); 
             };
 
-            // --- کامپوننت‌ها ---
+            // --- کامپوننت‌های رابط کاربری (UI) ---
+            
             const RenderIntro = () => (
                 <div className="flex flex-col items-center justify-center text-center w-full max-w-[360px] animate-[fadeIn_0.7s_ease-out]">
                     <h1 className="text-4xl font-black text-white mb-12 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] leading-tight">
@@ -202,8 +184,9 @@
 
             const RenderResult = () => {
                 if (!prize) return null;
+                // اگر متن خیلی طولانی بود فونت را کوچک کن
                 const isLongText = prize.discount.length > 5;
-                const textSizeClass = isLongText ? "text-[4rem]" : "text-[7rem]";
+                const textSizeClass = isLongText ? "text-[3.5rem]" : "text-[7rem]";
 
                 return (
                     <div className="w-full max-w-[400px] animate-[slideUp_0.7s_ease-out]">
@@ -217,9 +200,7 @@
 
                         <div className="bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[2.5rem] border border-white/10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] relative overflow-hidden ring-1 ring-white/5">
                             <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
-                            <div className="absolute -left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-zinc-950 border-r border-white/10 rounded-full z-20"></div>
-                            <div className="absolute -right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-zinc-950 border-l border-white/10 rounded-full z-20"></div>
-
+                            
                             <div className="p-6 pb-0 flex flex-col items-center text-center relative z-10">
                                 <div className="mb-5 w-full">
                                     <span className="block text-zinc-400 text-base font-black mb-2 uppercase tracking-wide">قابل استفاده در:</span>
@@ -276,7 +257,6 @@
         root.render(<RoyalCampaignApp />);
     </script>
     
-    <!-- استایل‌های انیمیشن که در CSS اینلاین سخت بود -->
     <style>
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
